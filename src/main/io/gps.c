@@ -146,6 +146,7 @@ static const uint8_t ubloxInit[] = {
     0xB5, 0x62, 0x06, 0x01, 0x03, 0x00, 0x01, 0x02, 0x01, 0x0E, 0x47,           // set POSLLH MSG rate
     0xB5, 0x62, 0x06, 0x01, 0x03, 0x00, 0x01, 0x03, 0x01, 0x0F, 0x49,           // set STATUS MSG rate
     0xB5, 0x62, 0x06, 0x01, 0x03, 0x00, 0x01, 0x06, 0x01, 0x12, 0x4F,           // set SOL MSG rate
+    0xB5, 0x62, 0x06, 0x01, 0x03, 0x00, 0x01, 0x04, 0x01, 0x10, 0x4B,           // enable DOP
     //0xB5, 0x62, 0x06, 0x01, 0x03, 0x00, 0x01, 0x30, 0x01, 0x3C, 0xA3,           // set SVINFO MSG rate (every cycle - high bandwidth)
     0xB5, 0x62, 0x06, 0x01, 0x03, 0x00, 0x01, 0x30, 0x05, 0x40, 0xA7,           // set SVINFO MSG rate (evey 5 cycles - low bandwidth)
     0xB5, 0x62, 0x06, 0x01, 0x03, 0x00, 0x01, 0x12, 0x01, 0x1E, 0x67,           // set VELNED MSG rate
@@ -1149,6 +1150,17 @@ typedef struct {
 } ubx_nav_velned;
 
 typedef struct {
+      uint32_t time;             // GPS msToW
+      uint16_t gdop;
+      uint16_t pdop;
+      uint16_t tdop;
+      uint16_t vdop;
+      uint16_t hdop;
+      uint16_t ndop;
+      uint16_t edop;
+} ubx_nav_dop;
+
+typedef struct {
     uint8_t chn;                // Channel number, 255 for SVx not assigned to channel
     uint8_t svid;               // Satellite ID
     uint8_t flags;              // Bitmask
@@ -1182,6 +1194,7 @@ enum {
     MSG_ACK_ACK = 0x01,
     MSG_POSLLH = 0x2,
     MSG_STATUS = 0x3,
+    MSG_DOP =   0x4,
     MSG_SOL = 0x6,
     MSG_VELNED = 0x12,
     MSG_SVINFO = 0x30,
@@ -1249,6 +1262,7 @@ static union {
     ubx_nav_status status;
     ubx_nav_solution solution;
     ubx_nav_velned velned;
+    ubx_nav_dop    dop;
     ubx_nav_svinfo svinfo;
     ubx_ack ack;
     uint8_t bytes[UBLOX_PAYLOAD_SIZE];
@@ -1277,6 +1291,8 @@ static bool UBLOX_parse_gps(void)
         gpsSol.llh.lon = _buffer.posllh.longitude;
         gpsSol.llh.lat = _buffer.posllh.latitude;
         gpsSol.llh.altCm = _buffer.posllh.altitudeMslMm / 10;  //alt in cm
+        DEBUG_SET(DEBUG_GPS_Q, 3, _buffer.posllh.vertical_accuracy / 100 );
+        DEBUG_SET(DEBUG_GPS_Q, 2, _buffer.posllh.horizontal_accuracy / 100 );
         if (next_fix) {
             ENABLE_STATE(GPS_FIX);
         } else {
@@ -1332,6 +1348,10 @@ static bool UBLOX_parse_gps(void)
         }
         GPS_svInfoReceivedCount++;
         break;
+    case MSG_DOP:
+       DEBUG_SET(DEBUG_GPS_Q, 1, _buffer.dop.vdop);
+       DEBUG_SET(DEBUG_GPS_Q, 0, _buffer.dop.hdop);
+       break;
     case MSG_ACK_ACK:
         if ((gpsData.ackState == UBLOX_ACK_WAITING) && (_buffer.ack.msgId == gpsData.ackWaitingMsgId)) {
             gpsData.ackState = UBLOX_ACK_GOT_ACK;
